@@ -1,0 +1,112 @@
+-- Settings
+local HEIGHT_ABOVE = 9
+local HEIGHT_BOSS = 15
+
+-- Define boss names here
+local bosses = {
+	["Zyreth"] = true,
+	-- Add more like: ["BossName"] = true,
+}
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local combatRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Combat")
+local castRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Cast")
+local mobsFolder = workspace:WaitForChild("Mobs")
+
+-- Float setup
+local bodyPosition = Instance.new("BodyPosition")
+bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+bodyPosition.P = 1e4
+bodyPosition.D = 1000
+bodyPosition.Parent = hrp
+
+local bodyGyro = Instance.new("BodyGyro")
+bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+bodyGyro.P = 1e4
+bodyGyro.D = 500
+bodyGyro.Parent = hrp
+
+-- Utility: Get closest mob
+local function getNextMob()
+	local closest, minDist = nil, math.huge
+	for _, mob in pairs(mobsFolder:GetDescendants()) do
+		if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
+			local dist = (hrp.Position - mob.HumanoidRootPart.Position).Magnitude
+			if dist < minDist then
+				minDist = dist
+				closest = mob
+			end
+		end
+	end
+	return closest
+end
+
+-- Instantly kill a mob
+local function killMob(mob)
+	local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
+	if mobHumanoid and mobHumanoid.Health > 0 then
+		mobHumanoid.Health = 0
+	end
+end
+
+-- Auto-kill existing mobs
+for _, mob in ipairs(mobsFolder:GetChildren()) do
+	killMob(mob)
+end
+
+-- Auto-kill real-time mobs
+mobsFolder.ChildAdded:Connect(function(mob)
+	mob.ChildAdded:Connect(function()
+		killMob(mob)
+	end)
+	killMob(mob)
+end)
+
+-- Main loop
+game:GetService("RunService").Heartbeat:Connect(function()
+	-- Check health first (priority)
+	if humanoid.Health / humanoid.MaxHealth < 0.5 then
+		local healArgs = { [1] = "Heal" }
+		castRemote:InvokeServer(unpack(healArgs))
+	end
+
+	local target = getNextMob()
+	if target and target:FindFirstChild("HumanoidRootPart") then
+		local mobHRP = target.HumanoidRootPart
+		local isBoss = bosses[target.Name]
+		local floatHeight = isBoss and HEIGHT_BOSS or HEIGHT_ABOVE
+		local floatPos = mobHRP.Position + Vector3.new(0, floatHeight, 0)
+
+		-- Enable float
+		bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+		bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+
+		bodyPosition.Position = floatPos
+		bodyGyro.CFrame = CFrame.new(hrp.Position, mobHRP.Position)
+
+		-- Fireball if boss
+		if isBoss then
+			local fireballArgs = { [1] = "Fireball" }
+			castRemote:InvokeServer(unpack(fireballArgs))
+		end
+
+		-- Attack and kill
+		combatRemote:FireServer()
+		killMob(target)
+	else
+		-- Disable float when no target
+		bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+		bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+	end
+end)
+
+-- Cleanup
+humanoid.Died:Connect(function()
+	bodyPosition:Destroy()
+	bodyGyro:Destroy()
+end)
