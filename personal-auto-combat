@@ -1,6 +1,7 @@
 -- Settings
 local HEIGHT_ABOVE = 9
 local HEIGHT_BOSS = 15
+local HEIGHT_WAVE10 = 20
 
 -- Define boss names here
 local bosses = {
@@ -17,6 +18,10 @@ local replicatedStorage = game:GetService("ReplicatedStorage")
 local combatRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Combat")
 local castRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Cast")
 local mobsFolder = workspace:WaitForChild("Mobs")
+
+-- GUI Element for wave detection
+local waveTextLabel = player:WaitForChild("PlayerGui"):WaitForChild("ScreenGui"):WaitForChild("Wave")
+local currentWaveHeightOverride = false
 
 -- Float setup
 local bodyPosition = Instance.new("BodyPosition")
@@ -67,10 +72,19 @@ mobsFolder.ChildAdded:Connect(function(mob)
 	killMob(mob)
 end)
 
+-- Watch the wave text in real time
+waveTextLabel:GetPropertyChangedSignal("Text"):Connect(function()
+	if waveTextLabel.Text == "WAVE 10" then
+		currentWaveHeightOverride = true
+	else
+		currentWaveHeightOverride = false
+	end
+end)
+
 -- Main loop
 game:GetService("RunService").Heartbeat:Connect(function()
 	-- Check health first (priority)
-	if humanoid.Health / humanoid.MaxHealth < 0.5 then
+	if humanoid.Health / humanoid.MaxHealth < 0.6 then
 		local healArgs = { [1] = "Heal" }
 		castRemote:InvokeServer(unpack(healArgs))
 	end
@@ -79,10 +93,12 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	if target and target:FindFirstChild("HumanoidRootPart") then
 		local mobHRP = target.HumanoidRootPart
 		local isBoss = bosses[target.Name]
+
+		-- Return to normal heights if mob or boss exists
 		local floatHeight = isBoss and HEIGHT_BOSS or HEIGHT_ABOVE
+
 		local floatPos = mobHRP.Position + Vector3.new(0, floatHeight, 0)
 
-		-- Enable float
 		bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 		bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
 
@@ -95,13 +111,22 @@ game:GetService("RunService").Heartbeat:Connect(function()
 			castRemote:InvokeServer(unpack(fireballArgs))
 		end
 
-		-- Attack and kill
 		combatRemote:FireServer()
 		killMob(target)
 	else
-		-- Disable float when no target
-		bodyPosition.MaxForce = Vector3.new(0, 0, 0)
-		bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+		-- WAVE 10 float boost (only when no mob)
+		if currentWaveHeightOverride then
+			local floatPos = hrp.Position + Vector3.new(0, HEIGHT_WAVE10, 0)
+			bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+			bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+
+			bodyPosition.Position = floatPos
+			bodyGyro.CFrame = hrp.CFrame
+		else
+			-- Disable float
+			bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+			bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+		end
 	end
 end)
 
