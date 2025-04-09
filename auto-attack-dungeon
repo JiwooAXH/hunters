@@ -1,12 +1,29 @@
 -- Settings
-local HEIGHT_ABOVE = 9 -- You float 9 studs above the enemy
+local HEIGHT_ABOVE = 9
+local HEIGHT_BOSS = 15
+local HEIGHT_WAVE10 = 20
+
+-- Boss list (expandable)
+local bosses = {
+	["Zyreth"] = true,
+	-- Add more: ["BossName"] = true
+}
+
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
 local combatRemote = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Combat")
+local waveTextLabel = player:WaitForChild("PlayerGui"):WaitForChild("ScreenGui"):WaitForChild("Wave")
 
--- Smooth Float System
+-- Real-time wave status
+local currentWaveHeightOverride = false
+
+waveTextLabel:GetPropertyChangedSignal("Text"):Connect(function()
+	currentWaveHeightOverride = (waveTextLabel.Text == "WAVE 10")
+end)
+
+-- Float system
 local bodyPosition = Instance.new("BodyPosition")
 bodyPosition.MaxForce = Vector3.new(0, 0, 0)
 bodyPosition.P = 1e4
@@ -19,7 +36,7 @@ bodyGyro.P = 1e4
 bodyGyro.D = 500
 bodyGyro.Parent = hrp
 
--- Target Finder
+-- Closest target finder
 local function getClosestAliveMob()
 	local closest, minDist = nil, math.huge
 	for _, mob in pairs(workspace.Mobs:GetDescendants()) do
@@ -36,29 +53,34 @@ local function getClosestAliveMob()
 	return closest
 end
 
-local currentTarget = nil
-
--- Floating Combat Loop
+-- Combat loop
 game:GetService("RunService").Heartbeat:Connect(function()
-	currentTarget = getClosestAliveMob()
+	local currentTarget = getClosestAliveMob()
 
 	if currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
 		local mobHRP = currentTarget.HumanoidRootPart
-		local floatAbove = mobHRP.Position + Vector3.new(0, HEIGHT_ABOVE, 0)
+		local isBoss = bosses[currentTarget.Name]
+		local floatHeight = isBoss and HEIGHT_BOSS or HEIGHT_ABOVE
 
-		-- Enable float and face target
 		bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 		bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
 
-		bodyPosition.Position = floatAbove
+		bodyPosition.Position = mobHRP.Position + Vector3.new(0, floatHeight, 0)
 		bodyGyro.CFrame = CFrame.new(hrp.Position, mobHRP.Position)
 
-		-- Attack
 		combatRemote:FireServer()
 	else
-		-- Disable float if no target
-		bodyPosition.MaxForce = Vector3.new(0, 0, 0)
-		bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+		-- No target: Check if WAVE 10 is active
+		if currentWaveHeightOverride then
+			bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+			bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+
+			bodyPosition.Position = hrp.Position + Vector3.new(0, HEIGHT_WAVE10, 0)
+			bodyGyro.CFrame = hrp.CFrame
+		else
+			bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+			bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+		end
 	end
 end)
 
