@@ -1,0 +1,298 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+-- Define the dungeons configuration
+local Dungeons = {
+    ["Double Dungeon"] = "DoubleDungeonD",
+    ["Goblin Cave"] = "GoblinCave",
+    ["Spider Cavern"] = "SpiderCavern"
+    -- Add more dungeons here in the future
+}
+
+-- Define difficulty settings
+local Difficulties = {"Regular", "Hard", "Nightmare"}
+
+-- Variables to track current selections
+local currentDungeon = "DoubleDungeonD" -- Default dungeon
+local currentDifficulty = "Regular" -- Default difficulty
+
+-- Function to check if player is in a dungeon
+local function isInDungeon()
+    -- Check for specific dungeon paths
+    if workspace.Map:FindFirstChild("DoubleDungeonD") or 
+       workspace.Map:FindFirstChild("GoblinCave") or 
+       workspace.Map:FindFirstChild("SpiderCavern") then
+        return true
+    end
+    
+    return false
+end
+
+-- Function to identify which dungeon the player is in
+local function getCurrentDungeon()
+    if workspace.Map:FindFirstChild("DoubleDungeonD") then
+        return "Double Dungeon"
+    elseif workspace.Map:FindFirstChild("GoblinCave") then
+        return "Goblin Cave"
+    elseif workspace.Map:FindFirstChild("SpiderCavern") then
+        return "Spider Cavern"
+    end
+    return "Unknown"
+end
+
+local Window = Fluent:CreateWindow({
+    Title = "Hunters ",
+    SubTitle = "Made by: Yuki",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(530, 350),
+    Acrylic = true,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Main = Window:AddTab({ Title = "Dungeon", Icon = "rbxassetid://10734975692" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local Options = Fluent.Options
+
+-- Function to create and send the dungeon lobby
+local function createDungeonLobby()
+    print("Creating lobby with dungeon: " .. currentDungeon)
+    local args = {[1] = currentDungeon}
+    local result = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("createLobby"):InvokeServer(unpack(args))
+    print("Lobby creation result:", result)
+    return result
+end
+
+-- Function to set dungeon difficulty
+local function setDungeonDifficulty()
+    print("Setting difficulty to: " .. currentDifficulty)
+    local args = {[1] = currentDifficulty}
+    local result = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LobbyDifficulty"):FireServer(unpack(args))
+    print("Difficulty set result:", result)
+    return result
+end
+
+-- Extract dungeon names for the dropdown
+local dungeonNames = {}
+for name, _ in pairs(Dungeons) do
+    table.insert(dungeonNames, name)
+end
+
+-- Check if player is in dungeon
+local inDungeon = isInDungeon()
+local currentDungeonName = ""
+if inDungeon then
+    currentDungeonName = getCurrentDungeon()
+end
+
+do
+    -- Create a different UI based on whether player is in dungeon or not
+    if inDungeon then
+        Tabs.Main:AddParagraph({
+            Title = "⚠️ Dungeon Detected",
+            Content = "You are currently in " .. currentDungeonName .. ". Dungeon selection controls are disabled to prevent issues."
+        })
+        
+        -- Add dungeon-specific controls here if needed
+        Tabs.Main:AddButton({
+            Title = "Refresh Status",
+            Description = "Check if you're still in a dungeon",
+            Callback = function()
+                if isInDungeon() then
+                    Fluent:Notify({
+                        Title = "Still in Dungeon",
+                        Content = "You are still in " .. getCurrentDungeon() .. ".",
+                        Duration = 3
+                    })
+                else
+                    Fluent:Notify({
+                        Title = "Status Changed",
+                        Content = "You are no longer in a dungeon. Please relaunch the script.",
+                        Duration = 5
+                    })
+                end
+            end
+        })
+        
+    else
+        -- Regular dungeon selection UI when not in dungeon
+        Tabs.Main:AddParagraph({
+            Title = "Auto Dungeon",
+            Content = "Choose the Dungeon and Difficulty you want."
+        })
+        
+        -- DUNGEON MAP SELECTOR
+        local dungeonDropdown = Tabs.Main:AddDropdown("DungeonSelector", {
+            Title = "Dungeon",
+            Values = dungeonNames,
+            Multi = false,
+            Default = 1,
+        })
+        
+        dungeonDropdown:OnChanged(function(Value)
+            -- Check if player entered a dungeon during script execution
+            if isInDungeon() then
+                Fluent:Notify({
+                    Title = "Warning",
+                    Content = "Dungeon detected! Please exit the dungeon first.",
+                    Duration = 5
+                })
+                return
+            end
+            
+            print("Dropdown selected: " .. Value)
+            currentDungeon = Dungeons[Value]
+            print("Setting dungeon to: " .. currentDungeon)
+            createDungeonLobby()
+        end)
+
+        -- DUNGEON DIFFICULTY SELECTOR
+        local difficultyDropdown = Tabs.Main:AddDropdown("DifficultySelector", {
+            Title = "Difficulty",
+            Values = Difficulties,
+            Multi = false,
+            Default = 1,
+        })
+        
+        difficultyDropdown:OnChanged(function(Value)
+            -- Check if player entered a dungeon during script execution
+            if isInDungeon() then
+                Fluent:Notify({
+                    Title = "Warning",
+                    Content = "Dungeon detected! Please exit the dungeon first.",
+                    Duration = 5
+                })
+                return
+            end
+            
+            currentDifficulty = Value
+            setDungeonDifficulty()
+        end)
+        
+        -- AUTO START DUNGEON
+        local startToggle = Tabs.Main:AddToggle("AutoStart", {
+            Title = "Start Dungeon", 
+            Default = false 
+        })
+
+        startToggle:OnChanged(function()
+            -- Check if player entered a dungeon during script execution
+            if isInDungeon() then
+                startToggle:Set(false)
+                Fluent:Notify({
+                    Title = "Warning",
+                    Content = "Dungeon detected! Please exit the dungeon first.",
+                    Duration = 5
+                })
+                return
+            end
+            
+            if startToggle.Value then
+                -- Create lobby with current settings
+                createDungeonLobby()
+                
+                -- Set difficulty
+                setDungeonDifficulty()
+                
+                -- Wait 3 seconds then start
+                Fluent:Notify({
+                    Title = "Starting Dungeon",
+                    Content = "Starting " .. currentDungeon .. " on " .. currentDifficulty .. " in 3 seconds",
+                    Duration = 3
+                })
+                
+                wait(3)
+                
+                -- Check again before starting
+                if isInDungeon() then
+                    startToggle:Set(false)
+                    Fluent:Notify({
+                        Title = "Cancelled",
+                        Content = "Dungeon detected! Start cancelled.",
+                        Duration = 5
+                    })
+                    return
+                end
+                
+                -- Start the dungeon
+                print("Starting dungeon")
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LobbyStart"):FireServer()
+            end
+        end)
+        
+        -- Add a button for manual create lobby (for testing)
+        local refreshButton = Tabs.Main:AddButton({
+            Title = "Refresh Lobby",
+            Description = "Recreate the lobby with current settings",
+            Callback = function()
+                -- Check if player entered a dungeon during script execution
+                if isInDungeon() then
+                    Fluent:Notify({
+                        Title = "Warning",
+                        Content = "Dungeon detected! Please exit the dungeon first.",
+                        Duration = 5
+                    })
+                    return
+                end
+                
+                createDungeonLobby()
+                setDungeonDifficulty()
+                Fluent:Notify({
+                    Title = "Lobby Refreshed",
+                    Content = "Created " .. currentDungeon .. " on " .. currentDifficulty,
+                    Duration = 3
+                })
+            end
+        })
+    end
+end
+
+-- Add real-time dungeon detection
+local dungeonDetection = coroutine.create(function()
+    while wait(1) do
+        local nowInDungeon = isInDungeon()
+        if nowInDungeon ~= inDungeon then
+            -- Status changed
+            inDungeon = nowInDungeon
+            if inDungeon then
+                Fluent:Notify({
+                    Title = "Dungeon Detected",
+                    Content = "You entered " .. getCurrentDungeon() .. ". Please relaunch the script for full functionality.",
+                    Duration = 5
+                })
+            else
+                Fluent:Notify({
+                    Title = "Dungeon Exited",
+                    Content = "You are no longer in a dungeon. Please relaunch the script for full functionality.",
+                    Duration = 5
+                })
+            end
+        end
+    end
+end)
+coroutine.resume(dungeonDetection)
+
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder("FluentScriptHub")
+SaveManager:SetFolder("FluentScriptHub/specific-game")
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Hunters Script",
+    Content = inDungeon and "Detected: You are in " .. currentDungeonName or "The script has been loaded.",
+    Duration = 3
+})
+
+if not inDungeon then
+    SaveManager:LoadAutoloadConfig()
+end
