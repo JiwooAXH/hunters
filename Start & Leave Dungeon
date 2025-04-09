@@ -1,0 +1,15 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+while true do
+    task.wait(1)
+
+    local success, err = pcall(function()
+        Remotes:WaitForChild("LeaveToLobby"):FireServer()
+        Remotes:WaitForChild("DungeonStart"):FireServer()
+    end)
+
+    if not success then
+        warn("Error firing remote events:", err)
+    end
+end
