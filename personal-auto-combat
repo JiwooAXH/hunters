@@ -1,12 +1,6 @@
--- Improved Instant Enemy/Mob Kill Script
--- Eliminates delay issues and ensures reliable instant kills
-
 -- Settings
 local HEIGHT_ABOVE = 9
 local HEIGHT_BOSS = 15
-local KILL_INTERVAL = 0.05 -- How often to attempt kills (seconds)
-local MAX_KILL_ATTEMPTS = 10 -- Maximum attempts per mob
-local DEBUG_MODE = true -- Set to true for debugging info
 
 -- Define boss names here
 local bosses = {
@@ -14,25 +8,15 @@ local bosses = {
 	-- Add more like: ["BossName"] = true,
 }
 
--- Services
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
--- Player references
-local player = Players.LocalPlayer
+local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
 
--- Game references
-local combatRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Combat")
-local castRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Cast")
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local combatRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Combat")
+local castRemote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("Cast")
 local mobsFolder = workspace:WaitForChild("Mobs")
-
--- Kill tracking system
-local mobKillAttempts = {}
-local mobsBeingProcessed = {}
 
 -- Float setup
 local bodyPosition = Instance.new("BodyPosition")
@@ -47,238 +31,82 @@ bodyGyro.P = 1e4
 bodyGyro.D = 500
 bodyGyro.Parent = hrp
 
--- Debug function
-local function debugPrint(...)
-    if DEBUG_MODE then
-        print("[MobKiller]", ...)
-    end
-end
-
 -- Utility: Get closest mob
 local function getNextMob()
-    local closest, minDist = nil, math.huge
-    for _, mob in pairs(mobsFolder:GetChildren()) do
-        if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
-            local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
-            if mobHumanoid and mobHumanoid.Health > 0 then
-                local dist = (hrp.Position - mob.HumanoidRootPart.Position).Magnitude
-                if dist < minDist then
-                    minDist = dist
-                    closest = mob
-                end
-            end
-        end
-    end
-    return closest
+	local closest, minDist = nil, math.huge
+	for _, mob in pairs(mobsFolder:GetDescendants()) do
+		if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
+			local dist = (hrp.Position - mob.HumanoidRootPart.Position).Magnitude
+			if dist < minDist then
+				minDist = dist
+				closest = mob
+			end
+		end
+	end
+	return closest
 end
 
--- Multiple methods to try killing a mob
+-- Instantly kill a mob
 local function killMob(mob)
-    -- Skip if mob is nil or already being processed
-    if not mob or mobsBeingProcessed[mob] then return false end
-    
-    -- Get mob identifier for tracking
-    local mobId = mob:GetFullName()
-    
-    -- Track mob kill attempts
-    mobKillAttempts[mobId] = (mobKillAttempts[mobId] or 0) + 1
-    
-    -- Method 1: Direct Humanoid health manipulation
-    local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
-    if mobHumanoid and mobHumanoid.Health > 0 then
-        -- Try multiple kill methods in sequence
-        task.spawn(function()
-            mobsBeingProcessed[mob] = true
-            
-            -- Method 1: Set health to 0
-            mobHumanoid.Health = 0
-            
-            -- Method 2: Use TakeDamage with large value
-            task.wait(0.01)
-            if mobHumanoid.Health > 0 then
-                mobHumanoid:TakeDamage(1000000)
-            end
-            
-            -- Method 3: Override MaxHealth and Health
-            task.wait(0.01)
-            if mobHumanoid.Health > 0 then
-                mobHumanoid.MaxHealth = 1
-                mobHumanoid.Health = 0
-            end
-            
-            mobsBeingProcessed[mob] = nil
-            
-            -- Debug output for kill attempts
-            if mobKillAttempts[mobId] >= MAX_KILL_ATTEMPTS then
-                debugPrint("Max kill attempts reached for:", mob.Name)
-            end
-        end)
-        
-        return true
-    end
-    
-    -- Method 4: Find and modify any health value
-    for _, child in pairs(mob:GetDescendants()) do
-        if child.Name:lower():match("health") or child.Name:lower():match("hp") then
-            if child:IsA("NumberValue") or child:IsA("IntValue") then
-                child.Value = 0
-                return true
-            elseif typeof(child) == "number" then
-                child = 0
-                return true
-            end
-        end
-    end
-    
-    -- Method 5: Look for script with health property
-    for _, script in pairs(mob:GetDescendants()) do
-        if script:IsA("Script") or script:IsA("LocalScript") or script:IsA("ModuleScript") then
-            task.spawn(function()
-                -- This is an attempt to interact with potential custom health systems
-                local success = pcall(function()
-                    script.Disabled = true
-                end)
-            end)
-        end
-    end
-    
-    return false
+	local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
+	if mobHumanoid and mobHumanoid.Health > 0 then
+		mobHumanoid.Health = 0
+	end
 end
 
--- Enhanced mob detection and processing
-local function processAllMobs()
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        if mob:IsA("Model") then
-            killMob(mob)
-        end
-    end
-end
-
--- Watch for new mobs with enhanced detection
-local function setupMobWatcher()
-    mobsFolder.ChildAdded:Connect(function(newMob)
-        debugPrint("New mob detected:", newMob.Name)
-        
-        -- Immediate attempt
-        killMob(newMob)
-        
-        -- Secondary attempt after a brief delay (for mobs that load in stages)
-        task.delay(0.1, function()
-            killMob(newMob)
-        end)
-        
-        -- Final attempt with longer delay
-        task.delay(0.5, function()
-            killMob(newMob)
-        end)
-        
-        -- Watch for changes in the mob model
-        newMob.ChildAdded:Connect(function(child)
-            -- If Humanoid or HumanoidRootPart is added after the mob
-            if child:IsA("Humanoid") or child.Name == "HumanoidRootPart" then
-                killMob(newMob)
-            end
-        end)
-    end)
-    
-    -- Watch for changes to existing mobs
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        mob.ChildAdded:Connect(function(child)
-            killMob(mob)
-        end)
-    end
-end
-
--- Kill mobs on a regular interval
-local function startKillLoop()
-    while true do
-        processAllMobs()
-        task.wait(KILL_INTERVAL)
-    end
-end
-
--- Main combat loop
-local function startCombatLoop()
-    RunService.Heartbeat:Connect(function()
-        -- Check health first (priority)
-        if humanoid.Health / humanoid.MaxHealth < 0.5 then
-            local healArgs = { [1] = "Heal" }
-            castRemote:InvokeServer(unpack(healArgs))
-        end
-    
-        local target = getNextMob()
-        if target and target:FindFirstChild("HumanoidRootPart") then
-            local mobHRP = target.HumanoidRootPart
-            local isBoss = bosses[target.Name]
-            local floatHeight = isBoss and HEIGHT_BOSS or HEIGHT_ABOVE
-            local floatPos = mobHRP.Position + Vector3.new(0, floatHeight, 0)
-    
-            -- Enable float
-            bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-    
-            bodyPosition.Position = floatPos
-            bodyGyro.CFrame = CFrame.new(hrp.Position, mobHRP.Position)
-    
-            -- Fireball if boss
-            if isBoss then
-                local fireballArgs = { [1] = "Fireball" }
-                castRemote:InvokeServer(unpack(fireballArgs))
-            end
-    
-            -- Attack and kill
-            combatRemote:FireServer()
-            killMob(target)
-        else
-            -- Disable float when no target
-            bodyPosition.MaxForce = Vector3.new(0, 0, 0)
-            bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
-        end
-    end)
-end
-
--- Player respawn handling
-local function setupRespawnHandler()
-    player.CharacterAdded:Connect(function(newCharacter)
-        character = newCharacter
-        hrp = character:WaitForChild("HumanoidRootPart")
-        humanoid = character:WaitForChild("Humanoid")
-        
-        -- Recreate float setup
-        bodyPosition = Instance.new("BodyPosition")
-        bodyPosition.MaxForce = Vector3.new(0, 0, 0)
-        bodyPosition.P = 1e4
-        bodyPosition.D = 1000
-        bodyPosition.Parent = hrp
-        
-        bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
-        bodyGyro.P = 1e4
-        bodyGyro.D = 500
-        bodyGyro.Parent = hrp
-        
-        -- Clean up tracking data
-        mobKillAttempts = {}
-        mobsBeingProcessed = {}
-        
-        debugPrint("Character respawned, kill system reset")
-    end)
-    
-    humanoid.Died:Connect(function()
-        if bodyPosition then bodyPosition:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
-    end)
-end
-
--- Initialize everything
-debugPrint("Initializing advanced mob killer system...")
-setupMobWatcher()
-setupRespawnHandler()
-task.spawn(startKillLoop)
-task.spawn(startCombatLoop)
-debugPrint("Kill system activated!")
-
--- Process existing mobs immediately
+-- Auto-kill existing mobs
 for _, mob in ipairs(mobsFolder:GetChildren()) do
-    killMob(mob)
+	killMob(mob)
 end
+
+-- Auto-kill real-time mobs
+mobsFolder.ChildAdded:Connect(function(mob)
+	mob.ChildAdded:Connect(function()
+		killMob(mob)
+	end)
+	killMob(mob)
+end)
+
+-- Main loop
+game:GetService("RunService").Heartbeat:Connect(function()
+	-- Check health first (priority)
+	if humanoid.Health / humanoid.MaxHealth < 0.5 then
+		local healArgs = { [1] = "Heal" }
+		castRemote:InvokeServer(unpack(healArgs))
+	end
+
+	local target = getNextMob()
+	if target and target:FindFirstChild("HumanoidRootPart") then
+		local mobHRP = target.HumanoidRootPart
+		local isBoss = bosses[target.Name]
+		local floatHeight = isBoss and HEIGHT_BOSS or HEIGHT_ABOVE
+		local floatPos = mobHRP.Position + Vector3.new(0, floatHeight, 0)
+
+		-- Enable float
+		bodyPosition.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+		bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+
+		bodyPosition.Position = floatPos
+		bodyGyro.CFrame = CFrame.new(hrp.Position, mobHRP.Position)
+
+		-- Fireball if boss
+		if isBoss then
+			local fireballArgs = { [1] = "Fireball" }
+			castRemote:InvokeServer(unpack(fireballArgs))
+		end
+
+		-- Attack and kill
+		combatRemote:FireServer()
+		killMob(target)
+	else
+		-- Disable float when no target
+		bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+		bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+	end
+end)
+
+-- Cleanup
+humanoid.Died:Connect(function()
+	bodyPosition:Destroy()
+	bodyGyro:Destroy()
+end)
