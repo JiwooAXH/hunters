@@ -1,0 +1,27 @@
+-- Hunters Personal Script (Auto-waits for game to load)
+
+-- Wait for critical game elements to load
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game:GetService("Players").LocalPlayer
+repeat task.wait() until game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+
+-- Script URLs
+local scripts = {
+    "https://raw.githubusercontent.com/JiwooAXH/hunters/main/personal-auto-combat", -- Auto Combat Dungeon 
+    "https://raw.githubusercontent.com/JiwooAXH/hunters/main/Auto-Start-Dungeon", -- Auto Enter Dungeon
+    "https://raw.githubusercontent.com/JiwooAXH/hunters/main/Start%20%26%20Leave%20Dungeon" -- Auto Leave Dungeon
+}
+
+-- Load each script asynchronously
+for _, url in ipairs(scripts) do
+    task.spawn(function()
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(url, true))()
+        end)
+
+        if not success then
+            warn("Failed to load script:", url, "\nError:", result)
+        end
+    end)
+end
+  
