@@ -134,7 +134,7 @@ local function performAutoActions()
             print("Auto action performing: Start Dungeon")
             Remotes:WaitForChild("DungeonStart"):FireServer()
         elseif action == "Leave to Dungeon" then
-            print("Auto action performing: Leave to Lobby")
+            print("Auto action performing: Leave to Dungeon")
             Remotes:WaitForChild("LeaveToLobby"):FireServer()
         elseif action == "Replay Dungeon" then
             print("Auto action performing: Replay Dungeon")
