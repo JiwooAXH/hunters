@@ -9,8 +9,6 @@ repeat task.wait() until game:GetService("ReplicatedStorage"):FindFirstChild("Re
 local scripts = {
     "https://raw.githubusercontent.com/JiwooAXH/hunters/main/auto-attack-dungeon", -- Auto Combat Dungeon 
     "https://raw.githubusercontent.com/JiwooAXH/hunters/main/Auto-Start-Dungeon", -- Auto Enter Dungeon
-    "https://raw.githubusercontent.com/JiwooAXH/hunters/main/Start%20%26%20Leave%20Dungeon", -- Auto Leave Dungeon
-    "https://raw.githubusercontent.com/JiwooAXH/script/main/Toggle-GUi" -- Toggle to Hide & Show the GUI
 }
 
 -- Load each script asynchronously
