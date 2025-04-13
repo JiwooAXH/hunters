@@ -13,9 +13,18 @@ local Dungeons = {
 -- Define difficulty settings
 local Difficulties = {"Regular", "Hard", "Nightmare"}
 
+-- Auto action options
+local AutoActions = {
+    "Start Dungeon",
+    "Leave to Lobby",
+    "Replay Dungeon"
+}
+
 -- Variables to track current selections
 local currentDungeon = "DoubleDungeonD" -- Default dungeon
 local currentDifficulty = "Regular" -- Default difficulty
+local selectedAutoActions = {} -- Will store the selected auto actions
+local autoActionsEnabled = false -- Auto actions toggle state
 
 -- Function to check if player is in a dungeon
 local function isInDungeon()
@@ -76,6 +85,66 @@ local function setDungeonDifficulty()
     return result
 end
 
+-- Function to leave to lobby
+local function leaveToLobby()
+    print("Leaving to lobby")
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LeaveToLobby"):FireServer()
+end
+
+-- Function to start dungeon
+local function startDungeon()
+    print("Starting dungeon")
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DungeonStart"):FireServer()
+end
+
+-- Function to replay dungeon
+local function replayDungeon()
+    print("Replaying dungeon")
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ReplayDungeon"):FireServer()
+end
+
+-- Function to convert multi-dropdown value to array
+local function getSelectedActions(dropdownValue)
+    local actions = {}
+    for action, enabled in pairs(dropdownValue) do
+        if enabled then
+            table.insert(actions, action)
+        end
+    end
+    return actions
+end
+
+-- Function to perform the selected auto actions
+local function performAutoActions()
+    if not autoActionsEnabled then
+        return
+    end
+    
+    if #selectedAutoActions == 0 then
+        print("Auto actions enabled but no actions selected")
+        return
+    end
+    
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+    
+    -- Loop through selected actions and perform them
+    for _, action in ipairs(selectedAutoActions) do
+        if action == "Start Dungeon" then
+            print("Auto action performing: Start Dungeon")
+            Remotes:WaitForChild("DungeonStart"):FireServer()
+        elseif action == "Leave to Lobby" then
+            print("Auto action performing: Leave to Lobby")
+            Remotes:WaitForChild("LeaveToLobby"):FireServer()
+        elseif action == "Replay Dungeon" then
+            print("Auto action performing: Replay Dungeon")
+            Remotes:WaitForChild("ReplayDungeon"):FireServer()
+        end
+        -- Add a small delay between actions to prevent rate limiting
+        wait(0.5)
+    end
+end
+
 -- Extract dungeon names for the dropdown
 local dungeonNames = {}
 for name, _ in pairs(Dungeons) do
@@ -88,6 +157,10 @@ local currentDungeonName = ""
 if inDungeon then
     currentDungeonName = getCurrentDungeon()
 end
+
+-- Declare variables to store UI controls that need saving
+local actionsDropdown
+local actionsToggle
 
 do
     -- Create a different UI based on whether player is in dungeon or not
@@ -111,12 +184,75 @@ do
                 else
                     Fluent:Notify({
                         Title = "Status Changed",
-                        Content = "You are no longer in a dungeon. Please relaunch the script.",
+                        Content = "You are no longer in a dungeon. Please relaunch the script for full functionality.",
                         Duration = 5
                     })
                 end
             end
         })
+        
+        -- Add separator for auto actions that work in dungeon
+        Tabs.Main:AddParagraph({
+            Title = "Auto Actions",
+            Content = "Select multiple actions to perform automatically"
+        })
+        
+        -- Multi dropdown for auto actions
+        actionsDropdown = Tabs.Main:AddDropdown("MultiActionsDropdown", {
+            Title = "Auto Actions",
+            Description = "You can select multiple actions",
+            Values = AutoActions,
+            Multi = true,
+            Default = {}
+        })
+        
+        actionsDropdown:OnChanged(function(Value)
+            -- Extract selected actions from the Value table
+            selectedAutoActions = getSelectedActions(Value)
+            
+            local actionsStr = #selectedAutoActions > 0 and table.concat(selectedAutoActions, ", ") or "None"
+            print("Selected auto actions: " .. actionsStr)
+            
+            -- If toggle is on, notify the user about the change
+            if autoActionsEnabled then
+                Fluent:Notify({
+                    Title = "Auto Actions Changed",
+                    Content = "Now set to: " .. actionsStr,
+                    Duration = 3
+                })
+            end
+        end)
+        
+        -- Auto Actions Toggle
+        actionsToggle = Tabs.Main:AddToggle("AutoActionsToggle", {
+            Title = "Enable Auto Actions",
+            Default = false
+        })
+        
+        actionsToggle:OnChanged(function()
+            autoActionsEnabled = actionsToggle.Value
+            
+            if autoActionsEnabled then
+                local actionsStr = #selectedAutoActions > 0 and table.concat(selectedAutoActions, ", ") or "None"
+                
+                Fluent:Notify({
+                    Title = "Auto Actions Enabled",
+                    Content = "Will automatically perform: " .. actionsStr,
+                    Duration = 3
+                })
+                
+                -- Perform actions immediately once when enabled
+                if #selectedAutoActions > 0 then
+                    performAutoActions()
+                end
+            else
+                Fluent:Notify({
+                    Title = "Auto Actions Disabled",
+                    Content = "No longer performing automatic actions",
+                    Duration = 3
+                })
+            end
+        end)
         
     else
         -- Regular dungeon selection UI when not in dungeon
@@ -130,7 +266,7 @@ do
             Title = "Dungeon",
             Values = dungeonNames,
             Multi = false,
-            Default = 1,
+            Default = 1
         })
         
         dungeonDropdown:OnChanged(function(Value)
@@ -155,7 +291,7 @@ do
             Title = "Difficulty",
             Values = Difficulties,
             Multi = false,
-            Default = 1,
+            Default = 1
         })
         
         difficultyDropdown:OnChanged(function(Value)
@@ -248,6 +384,69 @@ do
                 })
             end
         })
+        
+        -- Add separator for auto functions
+        Tabs.Main:AddParagraph({
+            Title = "Auto Actions",
+            Content = "Select multiple actions to perform automatically"
+        })
+        
+        -- Multi dropdown for auto actions
+        actionsDropdown = Tabs.Main:AddDropdown("MultiActionsDropdown", {
+            Title = "Auto Actions",
+            Description = "You can select multiple actions",
+            Values = AutoActions,
+            Multi = true,
+            Default = {}
+        })
+        
+        actionsDropdown:OnChanged(function(Value)
+            -- Extract selected actions from the Value table
+            selectedAutoActions = getSelectedActions(Value)
+            
+            local actionsStr = #selectedAutoActions > 0 and table.concat(selectedAutoActions, ", ") or "None"
+            print("Selected auto actions: " .. actionsStr)
+            
+            -- If toggle is on, notify the user about the change
+            if autoActionsEnabled then
+                Fluent:Notify({
+                    Title = "Auto Actions Changed",
+                    Content = "Now set to: " .. actionsStr,
+                    Duration = 3
+                })
+            end
+        end)
+        
+        -- Auto Actions Toggle
+        actionsToggle = Tabs.Main:AddToggle("AutoActionsToggle", {
+            Title = "Enable Auto Actions",
+            Default = false
+        })
+        
+        actionsToggle:OnChanged(function()
+            autoActionsEnabled = actionsToggle.Value
+            
+            if autoActionsEnabled then
+                local actionsStr = #selectedAutoActions > 0 and table.concat(selectedAutoActions, ", ") or "None"
+                
+                Fluent:Notify({
+                    Title = "Auto Actions Enabled",
+                    Content = "Will automatically perform: " .. actionsStr,
+                    Duration = 3
+                })
+                
+                -- Perform actions immediately once when enabled
+                if #selectedAutoActions > 0 then
+                    performAutoActions()
+                end
+            else
+                Fluent:Notify({
+                    Title = "Auto Actions Disabled",
+                    Content = "No longer performing automatic actions",
+                    Duration = 3
+                })
+            end
+        end)
     end
 end
 
@@ -276,15 +475,32 @@ local dungeonDetection = coroutine.create(function()
 end)
 coroutine.resume(dungeonDetection)
 
+-- Create auto function loop
+local autoFunctionLoop = coroutine.create(function()
+    while wait(1) do
+        -- Check if auto actions are enabled and perform them
+        if autoActionsEnabled and #selectedAutoActions > 0 then
+            performAutoActions()
+        end
+    end
+end)
+coroutine.resume(autoFunctionLoop)
+
+-- Set up SaveManager with proper configuration
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
+SaveManager:SetIgnoreIndexes({}) -- Make sure we're not ignoring any options
+
+-- Set folders for saved configurations
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
+
+-- Build settings UI
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
+-- Apply saved configuration if not in dungeon
 Window:SelectTab(1)
 
 Fluent:Notify({
@@ -293,6 +509,51 @@ Fluent:Notify({
     Duration = 3
 })
 
-if not inDungeon then
-    SaveManager:LoadAutoloadConfig()
-end
+-- Load saved configuration - ALWAYS try to load, regardless of dungeon status
+SaveManager:LoadAutoloadConfig()
+
+-- After loading, we need to update our variables based on what was loaded
+-- This needs to run after a short delay to ensure UI elements are initialized
+task.spawn(function()
+    wait(0.5) -- Short delay to allow UI to initialize
+    
+    -- Update selected actions based on the loaded dropdown value
+    if Options.MultiActionsDropdown then
+        selectedAutoActions = getSelectedActions(Options.MultiActionsDropdown.Value)
+        print("Loaded saved actions:", #selectedAutoActions > 0 and table.concat(selectedAutoActions, ", ") or "None")
+        
+        -- Try to update the dropdown's visual state to match the saved selection
+        if actionsDropdown then
+            local savedValues = Options.MultiActionsDropdown.Value
+            actionsDropdown:Set(savedValues)
+            print("Updated dropdown visual state with saved values")
+        else
+            print("Warning: actionsDropdown not available to update visual state")
+        end
+    end
+    
+    -- Update auto actions enabled state
+    if Options.AutoActionsToggle then
+        autoActionsEnabled = Options.AutoActionsToggle.Value
+        print("Loaded auto actions enabled:", autoActionsEnabled)
+        
+        -- Try to update the toggle's visual state
+        if actionsToggle then
+            actionsToggle:Set(autoActionsEnabled)
+            print("Updated toggle visual state to:", autoActionsEnabled)
+        else
+            print("Warning: actionsToggle not available to update visual state")
+        end
+        
+        -- If auto actions are enabled, perform immediately
+        if autoActionsEnabled and #selectedAutoActions > 0 then
+            print("Auto-performing actions from saved config")
+            Fluent:Notify({
+                Title = "Auto Actions",
+                Content = "Executing saved actions: " .. table.concat(selectedAutoActions, ", "),
+                Duration = 3
+            })
+            performAutoActions()
+        end
+    end
+end)
