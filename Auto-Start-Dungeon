@@ -16,7 +16,7 @@ local Difficulties = {"Regular", "Hard", "Nightmare"}
 -- Auto action options
 local AutoActions = {
     "Start Dungeon",
-    "Leave to Lobby",
+    "Leave to Dungeon",
     "Replay Dungeon"
 }
 
