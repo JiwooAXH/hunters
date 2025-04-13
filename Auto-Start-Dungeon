@@ -87,7 +87,7 @@ end
 
 -- Function to leave to lobby
 local function leaveToLobby()
-    print("Leaving to lobby")
+    print("Leaving to Dungeon")
     game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LeaveToLobby"):FireServer()
 end
 
@@ -133,7 +133,7 @@ local function performAutoActions()
         if action == "Start Dungeon" then
             print("Auto action performing: Start Dungeon")
             Remotes:WaitForChild("DungeonStart"):FireServer()
-        elseif action == "Leave to Lobby" then
+        elseif action == "Leave to Dungeon" then
             print("Auto action performing: Leave to Lobby")
             Remotes:WaitForChild("LeaveToLobby"):FireServer()
         elseif action == "Replay Dungeon" then
@@ -141,7 +141,7 @@ local function performAutoActions()
             Remotes:WaitForChild("ReplayDungeon"):FireServer()
         end
         -- Add a small delay between actions to prevent rate limiting
-        wait(0.5)
+        wait(0.3)
     end
 end
 
@@ -193,7 +193,7 @@ do
         
         -- Add separator for auto actions that work in dungeon
         Tabs.Main:AddParagraph({
-            Title = "Auto Actions",
+            Title = "Actions",
             Content = "Select multiple actions to perform automatically"
         })
         
