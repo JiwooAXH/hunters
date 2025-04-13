@@ -486,6 +486,28 @@ local autoFunctionLoop = coroutine.create(function()
 end)
 coroutine.resume(autoFunctionLoop)
 
+-- Add Mobile UI Toggle section to Settings tab
+Tabs.Settings:AddParagraph({
+    Title = "Mobile UI Toggle",
+    Content = "For mobile users: Click the button below to add a toggle button that lets you hide/show the GUI. Useful for mobile devices with limited screen space."
+})
+
+-- Button to load mobile toggle GUI
+Tabs.Settings:AddButton({
+    Title = "Load Mobile Toggle Button",
+    Description = "Creates a small button to hide/show the GUI",
+    Callback = function()
+        -- Load the mobile toggle UI
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/JiwooAXH/script/main/Toggle-GUi", true))()
+        
+        Fluent:Notify({
+            Title = "Mobile Toggle Loaded",
+            Content = "You can now use the toggle button to hide/show the GUI",
+            Duration = 5
+        })
+    end
+})
+
 -- Set up SaveManager with proper configuration
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
